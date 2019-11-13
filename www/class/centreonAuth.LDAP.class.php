@@ -198,11 +198,25 @@ class CentreonAuthLDAP
      */
     public function updateUserDn()
     {
+        $this->debug = true;
+
         $contactAlias = html_entity_decode($this->contactInfos['contact_alias'], ENT_QUOTES, 'UTF-8');
+
+        //DEBUG
+        if ($this->debug === true) {
+            $this->CentreonLog->insertLog(2, "DEBUG : this->contactInfos = " . $this->contactInfos['contact_alias']);
+            $this->CentreonLog->insertLog(2, "DEBUG : contactAlias = " . $contactAlias);
+        }
 
         if ($this->ldap->rebind()) {
             $userDn = $this->ldap->findUserDn($contactAlias);
-            $userDn = $this->pearDB->escape($userDn);
+
+            //DEBUG :
+            if ($this->debug === true) {
+                //$this->CentreonLog->insertLog(2, "DEBUG : userDN = " . $unsecureUserDn);
+                $this->CentreonLog->insertLog(2, "DEBUG : escaped userDN = " . $userDn);
+            }
+
             if (false === $userDn) {
                 $this->CentreonLog->insertLog(3, "LDAP AUTH - Error : No DN for user " . $contactAlias);
                 return false;
@@ -211,6 +225,7 @@ class CentreonAuthLDAP
             // Get ldap user information
             $userInfos = $this->ldap->getEntry($userDn);
             $userDisplay = $userInfos[$this->ldap->getAttrName('user', 'name')];
+
             // Get the first if there are multiple entries
             if (is_array($userDisplay)) {
                 $userDisplay = $userDisplay[0];
@@ -219,6 +234,14 @@ class CentreonAuthLDAP
             $userDisplay = str_replace(array(' ', ','), '_', $userDisplay);
             // Delete parenthesis
             $userDisplay = str_replace(array('(', ')'), '', $userDisplay);
+
+            //$userDisplay = $this->pearDB->escape($userDisplay);
+
+            //DEBUG
+            if ($this->debug === true) {
+                //$this->CentreonLog->insertLog(2, "DEBUG : escaped userDisplay = " . $userDisplay);
+                $this->CentreonLog->insertLog(2, "DEBUG : userDisplay = " . $userDisplay);
+            }
 
             //getting user's email
             $userEmail = $this->contactInfos['contact_email'];
@@ -306,8 +329,38 @@ class CentreonAuthLDAP
                 return true;
             } else {
                 /**
-                 * The current user wasn't found. Adding him to the DB
-                 * First, searching if a contact template has been specified in the LDAP parameters
+                 * The current user wasn't found, we'll add him to the DB
+                 * First, checking that all the mandatory data are available
+                 */
+                if (!isset($userDn) || !isset($contactAlias) || !isset($userDisplay)) {
+                    if ($this->debug && !isset($userDn)) {
+                        $this->CentreonLog->insertLog(
+                            3,
+                            'LDAP AUTH - Error : user DN is not set'
+                        );
+                    }
+                    if ($this->debug && !isset($contactAlias)) {
+                        $this->CentreonLog->insertLog(
+                            3,
+                            'LDAP AUTH - Error : user alias is not set'
+                        );
+                    }
+                    if ($this->debug && !isset($userDisplay)) {
+                        $this->CentreonLog->insertLog(
+                            3,
+                            'LDAP AUTH - Error : user name is not set'
+                        );
+                    }
+
+                    $this->CentreonLog->insertLog(
+                        3,
+                        'LDAP AUTH - Error : Fail to insert the new user. Mandatory data are missing'
+                    );
+                    return false;
+                }
+
+                /**
+                 * Searching if a contact template has been specified in the LDAP parameters
                  */
                 $res = $this->pearDB->prepare(
                     "SELECT ari_value FROM `auth_ressource_info` a, `contact` c

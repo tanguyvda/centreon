@@ -55,6 +55,7 @@ class CentreonLDAP
 {
 
     public $centreonLog;
+    public $debug;
     private $ds;
     private $db = null;
     private $linkId;
